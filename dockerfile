@@ -1,34 +1,38 @@
-# Stage 1: Build stage pakai image Bun resmi
-FROM oven/bun:latest AS builder
+# --- STAGE 1: Build ---
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy file package dan bun.lockb
-COPY package.json bun.lockb ./
+# Install deps (gunakan cache)
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
 
-# Install dependencies dengan Bun
-RUN bun install
-
-# Copy semua source code
+# Salin semua source code
 COPY . .
 
-# Build project Next.js
-RUN bun run build
+# (Opsional) Jalankan prisma generate
+# RUN yarn prisma generate
 
-# Stage 2: Production image
-FROM oven/bun:latest
+# Build Next.js
+RUN yarn build
+
+# --- STAGE 2: Production ---
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy hasil build dari stage builder
+# Hanya salin yang dibutuhkan untuk production
 COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
+# (Opsional) .env jika dibutuhkan di runtime
+# COPY --from=builder /app/.env ./
+
 # Expose port default Next.js
 EXPOSE 3000
 
-# Jalankan Next.js dengan Bun
-CMD ["bun", "run", "start"]
+# Jalankan Next.js
+CMD ["yarn", "start"]
